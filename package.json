@@ -17,6 +17,7 @@
     "react-router-dom": "^7.9.6",
     "recharts": "^3.5.0"
   },
+  
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
