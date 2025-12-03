@@ -5,7 +5,7 @@ import { useStore } from '../App';
 import { OrderStatus, Table, VariantOption, Reservation, ReservationStatus } from '../types';
 
 const Tables: React.FC = () => {
-  const { tables, orders, reservations, addTable, removeTable, addReservation, updateReservationStatus } = useStore();
+  const { tables, orders, reservations, addTable, removeTable, addReservation, updateReservationStatus, cancelOrder } = useStore();
   const navigate = useNavigate();
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   
@@ -115,6 +115,15 @@ const Tables: React.FC = () => {
       if (window.confirm(`Are you sure you want to delete ${name}?`)) {
           removeTable(id);
       }
+  };
+
+  const handleCancelOrder = (orderId: string) => {
+    const reason = prompt("Enter cancellation reason (Optional):");
+    if (reason !== null) {
+      if (window.confirm("Are you sure you want to CANCEL this order? This action cannot be undone.")) {
+        cancelOrder(orderId, reason || "No reason provided");
+      }
+    }
   };
 
   // Open Reservation Modal
@@ -524,31 +533,105 @@ const Tables: React.FC = () => {
 
                         {/* Detailed Dropdown View */}
                         {isExpanded && (
-                            <div className="border-t border-indigo-100 bg-indigo-50/30 p-4 text-sm animate-fade-in rounded-b-lg">
-                                {/* ... (Keeping existing detailed view code) ... */}
-                                <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
-                                    <div className="bg-white p-2 rounded border border-slate-100">
-                                        <p className="text-slate-400 font-bold uppercase mb-1">Time Analysis</p>
-                                        <div className="space-y-1">
-                                            <p className="flex justify-between"><span>Created:</span> <span className="font-mono text-slate-700">{new Date(order.timestamp).toLocaleTimeString()}</span></p>
-                                            <p className="flex justify-between"><span>Occupied:</span> <span className="font-mono text-slate-700">{occupiedDuration}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white p-2 rounded border border-slate-100">
-                                        <p className="text-slate-400 font-bold uppercase mb-1">Service Info</p>
-                                        <div className="space-y-1">
-                                            <p>Staff: <span className="font-bold text-slate-700">{order.staffName || 'Unknown'}</span></p>
-                                            <p>Table: <span className="font-bold text-slate-700">{order.tableId}</span></p>
-                                        </div>
-                                    </div>
+                            <div className="border-t border-indigo-100 bg-white p-4 text-sm animate-fade-in rounded-b-lg shadow-inner">
+                                
+                                {/* 1. Header Info Grid */}
+                                <div className="grid grid-cols-2 gap-4 mb-4 text-xs text-slate-500 border-b border-slate-100 pb-3">
+                                     <div>
+                                        <p>Created: <span className="font-bold text-slate-700">{new Date(order.timestamp).toLocaleString()}</span></p>
+                                        <p>Staff: <span className="font-bold text-slate-700">{order.staffName || 'Unknown'}</span></p>
+                                     </div>
+                                     <div className="text-right">
+                                        <p>Duration: <span className="font-bold text-slate-700">{occupiedDuration}</span></p>
+                                        <p>Customer: <span className="font-bold text-slate-700">{order.customerName || 'Guest'}</span></p>
+                                     </div>
                                 </div>
 
-                                <div className="bg-white p-3 rounded border border-slate-200 space-y-2 mb-4">
-                                    <div className="flex justify-between font-bold text-base text-slate-900 border-t border-slate-200 pt-2 mt-1">
-                                        <span>Grand Total</span>
-                                        <span>₹{order.total}</span>
-                                    </div>
+                                {/* 2. Item List */}
+                                <div className="mb-4">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="text-slate-400 font-bold uppercase border-b border-slate-100">
+                                            <tr>
+                                                <th className="py-2">Item</th>
+                                                <th className="py-2 text-right">Qty</th>
+                                                <th className="py-2 text-right">Price</th>
+                                                <th className="py-2 text-right">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 text-slate-700">
+                                            {(order.items || []).map((item, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="py-2">
+                                                        <div className="font-medium">{item.name}</div>
+                                                        {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
+                                                            <div className="text-[10px] text-slate-400">
+                                                                {Object.values(item.selectedVariants).map((v: any) => v.name).join(', ')}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 text-right">{item.qty}</td>
+                                                    <td className="py-2 text-right">₹{item.price}</td>
+                                                    <td className="py-2 text-right font-bold">₹{item.price * item.qty}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
+
+                                {/* 3. Bill Summary */}
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-2 text-sm">
+                                     <div className="flex justify-between text-slate-600">
+                                         <span>Subtotal</span>
+                                         <span>₹{order.subtotal}</span>
+                                     </div>
+                                     <div className="flex justify-between text-slate-600">
+                                         <span>Tax (5%)</span>
+                                         <span>₹{order.tax}</span>
+                                     </div>
+                                     {order.discount > 0 && (
+                                         <div className="flex justify-between text-red-500">
+                                             <span>Discount {order.discountNote ? `(${order.discountNote})` : ''}</span>
+                                             <span>-₹{order.discount}</span>
+                                         </div>
+                                     )}
+                                     <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-2 mt-1">
+                                         <span>Grand Total</span>
+                                         <span className="text-lg">₹{order.total}</span>
+                                     </div>
+                                </div>
+
+                                {/* 4. Payment History */}
+                                {(order.payments || []).length > 0 && (
+                                    <div className="mt-4 pt-3 border-t border-slate-100">
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Payment History</p>
+                                        <div className="space-y-1">
+                                            {order.payments.map((p, i) => (
+                                                <div key={i} className="flex justify-between text-xs text-slate-600">
+                                                    <span>{new Date(p.timestamp).toLocaleTimeString()} - {p.method}</span>
+                                                    <span className="font-bold text-emerald-600">₹{p.amount}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                         {dueAmount > 0.5 && (
+                                             <div className="flex justify-between text-xs font-bold text-red-600 mt-2 pt-2 border-t border-dashed border-slate-200">
+                                                 <span>Pending Due</span>
+                                                 <span>₹{dueAmount}</span>
+                                             </div>
+                                         )}
+                                    </div>
+                                )}
+
+                                {/* 5. Cancel Action for Active Orders */}
+                                {order.status === OrderStatus.OPEN && (
+                                    <div className="mt-4 pt-4 border-t border-slate-200">
+                                        <button 
+                                            onClick={() => handleCancelOrder(order.id)}
+                                            className="w-full text-center text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 py-2 rounded-lg transition-colors"
+                                        >
+                                            Cancel This Order
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
