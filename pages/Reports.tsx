@@ -120,7 +120,7 @@ const Reports: React.FC = () => {
     const title = `Monthly Tax Analysis - ${selectedTaxMonth}`;
     
     doc.setFontSize(18);
-    doc.text("NexPOS Tax Report", 14, 20);
+    doc.text("KhaoJi Tax Report", 14, 20);
     
     doc.setFontSize(12);
     doc.text(title, 14, 30);
