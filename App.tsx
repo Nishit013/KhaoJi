@@ -867,7 +867,7 @@ const LoginScreen: React.FC = () => {
 
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm relative z-10">
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-slate-800">NexPOS</h1>
+                    <h1 className="text-3xl font-bold text-slate-800">KhaoJi</h1>
                     <p className="text-slate-500">Realtime Edition</p>
                 </div>
                 {!isDbConnected && (
