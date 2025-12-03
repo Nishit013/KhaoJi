@@ -5,7 +5,7 @@ import { useStore } from '../App';
 import { Product, PaymentMethod, VariantOption, OrderStatus, Payment, Order } from '../types';
 
 const POS: React.FC = () => {
-  const { products, categories, addToCart, cart, removeFromCart, updateCartItemQty, clearCart, sendToKitchen, settleOrder, settleCustomerDue, tables, orders, customers, loyaltySettings } = useStore();
+  const { products, categories, addToCart, cart, removeFromCart, updateCartItemQty, clearCart, sendToKitchen, settleOrder, settleCustomerDue, tables, orders, customers, loyaltySettings, cancelOrder } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -215,6 +215,16 @@ const POS: React.FC = () => {
     setRedeemPoints(false);
     setActivePaymentMode(PaymentMethod.CASH);
     setShowCheckoutModal(true);
+  };
+
+  const handleCancelActiveOrder = () => {
+    if (!activeOrder) return;
+    const reason = prompt("Enter cancellation reason (Optional):");
+    if (reason !== null) {
+      if (window.confirm("Are you sure you want to CANCEL this active order?")) {
+        cancelOrder(activeOrder.id, reason || "Cancelled from POS");
+      }
+    }
   };
 
   // --- WhatsApp Bill Generator ---
@@ -579,7 +589,7 @@ const POS: React.FC = () => {
               </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-2">
              <button
                 disabled={cart.length === 0}
                 onClick={handleSendToKitchen}
@@ -598,6 +608,15 @@ const POS: React.FC = () => {
                 <span className="text-[10px] font-normal opacity-90">Print & Close</span>
              </button>
           </div>
+          
+          {activeOrder && (
+            <button 
+                onClick={handleCancelActiveOrder}
+                className="w-full text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 py-2 rounded-lg"
+            >
+                Cancel Active Order
+            </button>
+          )}
         </div>
       </div>
 
