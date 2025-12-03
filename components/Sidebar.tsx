@@ -22,7 +22,7 @@ const Sidebar: React.FC = () => {
     <div className="w-64 bg-slate-900 text-white h-screen flex flex-col fixed left-0 top-0 z-50">
       <div className="p-6 border-b border-slate-700">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-          NexPOS
+          KhaoJi
         </h1>
         <p className="text-xs text-slate-400 mt-1">Enterprise Edition</p>
       </div>
