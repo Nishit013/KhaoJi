@@ -160,7 +160,7 @@ const Tables: React.FC = () => {
           const tableInfo = tables.find(t => t.id === resTableId);
           const tableName = tableInfo ? tableInfo.name : resTableId;
           
-          const message = `*Reservation Confirmed!* ✅%0a%0aHello ${resForm.customerName},%0aYour reservation at *NexPOS* is confirmed.%0a%0a📅 *Date:* ${dateStr}%0a⏰ *Time:* ${timeStr}%0a👥 *Guests:* ${resForm.guests}%0a🍽️ *Table:* ${tableName}%0a%0aThank you!`;
+          const message = `*Reservation Confirmed!* ✅%0a%0aHello ${resForm.customerName},%0aYour reservation at *KhaoJi* is confirmed.%0a%0a📅 *Date:* ${dateStr}%0a⏰ *Time:* ${timeStr}%0a👥 *Guests:* ${resForm.guests}%0a🍽️ *Table:* ${tableName}%0a%0aThank you!`;
           
           window.open(`https://wa.me/${resForm.customerPhone}?text=${message}`, '_blank');
       }
