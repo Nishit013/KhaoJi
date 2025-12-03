@@ -64,6 +64,7 @@ interface AppState {
   settleOrder: (tableId: string, payments: Payment[], discount: number, discountNote: string, customerName: string, customerPhone: string, deliveryAddress?: string, customerEmail?: string, redeemedPoints?: number) => void;
   settleCustomerDue: (customerPhone: string, payment: Payment) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  cancelOrder: (orderId: string, reason: string) => void; // NEW ACTION
   addTable: (name: string, floor: string) => void;
   removeTable: (id: string) => void;
   
@@ -740,6 +741,13 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     update(ref(db, 'orders/' + orderId), { status });
   };
 
+  const cancelOrder = (orderId: string, reason: string) => {
+    update(ref(db, 'orders/' + orderId), { status: OrderStatus.CANCELLED })
+        .then(() => {
+            logAction('ORDER_CANCELLED', `Order ${orderId} cancelled. Reason: ${reason}`, 'CRITICAL');
+        });
+  };
+
   const updateCustomer = (updatedCustomer: Customer) => {
     set(ref(db, 'customers/' + updatedCustomer.phone), cleanData(updatedCustomer));
   };
@@ -821,7 +829,7 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       login, logout, startShift, endShift, 
       showEndShiftModal, setShowEndShiftModal,
       addToCart, removeFromCart, updateCartItemQty, clearCart,
-      sendToKitchen, updateKotStatus, settleOrder, settleCustomerDue, updateOrderStatus,
+      sendToKitchen, updateKotStatus, settleOrder, settleCustomerDue, updateOrderStatus, cancelOrder,
       addTable, removeTable, addProduct, updateProduct, updateCustomer,
       addReservation, updateReservationStatus,
       addExpense, logAction, updateLoyaltySettings, retryConnection,
