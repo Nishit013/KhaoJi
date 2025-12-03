@@ -29,7 +29,7 @@ const POS: React.FC = () => {
   const [showKotModal, setShowKotModal] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('+91');
   const [customerEmail, setCustomerEmail] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
@@ -56,13 +56,13 @@ const POS: React.FC = () => {
 
   useEffect(() => {
       if (activeOrder) {
-          if (activeOrder.customerName) setCustomerName(activeOrder.customerName);
-          if (activeOrder.customerPhone) setCustomerPhone(activeOrder.customerPhone);
-          if (activeOrder.deliveryAddress) setDeliveryAddress(activeOrder.deliveryAddress);
+          setCustomerName(activeOrder.customerName || '');
+          setCustomerPhone(activeOrder.customerPhone || '+91');
+          setDeliveryAddress(activeOrder.deliveryAddress || '');
       } else {
           if (cart.length === 0 && !showKotModal && !showCheckoutModal) {
               setCustomerName('');
-              setCustomerPhone('');
+              setCustomerPhone('+91');
               setDeliveryAddress('');
           }
       }
