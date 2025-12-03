@@ -854,10 +854,6 @@ const LoginScreen: React.FC = () => {
                     <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/30 transition-all mt-4">
                         Login
                     </button>
-                    
-                    <div className="text-center mt-4">
-                        <p className="text-xs text-slate-400">Default Admin: ADMIN123 / 1234</p>
-                    </div>
                 </form>
             </div>
         </div>
