@@ -15,7 +15,7 @@ const firebaseConfig = {
 // Check for override in LocalStorage (Allows you to change keys via the UI if needed)
 let finalConfig = firebaseConfig;
 try {
-    const stored = localStorage.getItem('nexpos_firebase_config');
+    const stored = localStorage.getItem('KhaoJi_firebase_config');
     if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.apiKey && parsed.databaseURL) {
