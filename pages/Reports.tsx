@@ -8,15 +8,26 @@ import {
 } from 'recharts';
 import { OrderStatus } from '../types';
 
-type ReportCategory = 'SALES' | 'ORDERS' | 'INVENTORY' | 'STAFF' | 'FINANCE';
+type ReportCategory = 'SALES' | 'ORDERS' | 'INVENTORY' | 'STAFF' | 'FINANCE' | 'TAX';
 
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+// Define types for external libraries loaded via CDN
+declare global {
+  interface Window {
+    jspdf: any;
+    XLSX: any;
+  }
+}
 
 const Reports: React.FC = () => {
   const { orders, products, expenses, auditLogs, shifts, staffList } = useStore();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<ReportCategory>('SALES');
   const [dateRange, setDateRange] = useState<'TODAY' | 'WEEK' | 'MONTH' | 'ALL'>('ALL');
+
+  // State for Tax Analysis
+  const [selectedTaxMonth, setSelectedTaxMonth] = useState(new Date().toISOString().slice(0, 7)); // Default YYYY-MM
 
   // --- Helpers for Filtering ---
   const getFilteredOrders = () => {
@@ -35,6 +46,126 @@ const Reports: React.FC = () => {
   };
 
   const filteredOrders = useMemo(() => getFilteredOrders(), [orders, dateRange]);
+
+  // --- Tax Analysis Logic ---
+  const taxReportData = useMemo(() => {
+    const [year, month] = selectedTaxMonth.split('-').map(Number);
+    return orders.filter(o => {
+        if(o.status === OrderStatus.CANCELLED) return false;
+        const d = new Date(o.timestamp);
+        return d.getFullYear() === year && d.getMonth() === (month - 1);
+    }).sort((a,b) => a.timestamp - b.timestamp);
+  }, [orders, selectedTaxMonth]);
+
+  const taxSummary = useMemo(() => {
+    return taxReportData.reduce((acc, curr) => ({
+        taxable: acc.taxable + curr.subtotal,
+        tax: acc.tax + curr.tax,
+        total: acc.total + curr.total,
+        orders: acc.orders + 1
+    }), { taxable: 0, tax: 0, total: 0, orders: 0 });
+  }, [taxReportData]);
+
+  // --- Export Functions ---
+  const exportTaxExcel = () => {
+    if (!window.XLSX) {
+        alert("Excel export library loading...");
+        return;
+    }
+    
+    // Prepare Data
+    const data = taxReportData.map(order => ({
+        "Date": new Date(order.timestamp).toLocaleDateString(),
+        "Order ID": order.id,
+        "Customer Name": order.customerName || 'Guest',
+        "Customer Phone": order.customerPhone || '-',
+        "Subtotal (Taxable)": order.subtotal,
+        "Tax Amount (5%)": order.tax,
+        "Discount": order.discount,
+        "Grand Total": order.total
+    }));
+
+    // Add Summary Row
+    data.push({
+        "Date": "TOTAL",
+        "Order ID": "",
+        "Customer Name": "",
+        "Customer Phone": "",
+        "Subtotal (Taxable)": taxSummary.taxable,
+        "Tax Amount (5%)": taxSummary.tax,
+        "Discount": "",
+        "Grand Total": taxSummary.total
+    } as any);
+
+    const worksheet = window.XLSX.utils.json_to_sheet(data);
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, worksheet, "Tax Report");
+    
+    // Auto column width (basic approximation)
+    const wscols = [
+        {wch: 12}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}, {wch: 15}
+    ];
+    worksheet['!cols'] = wscols;
+
+    window.XLSX.writeFile(workbook, `Tax_Report_${selectedTaxMonth}.xlsx`);
+  };
+
+  const exportTaxPDF = () => {
+    if (!window.jspdf) {
+        alert("PDF export library loading...");
+        return;
+    }
+
+    const doc = new window.jspdf.jsPDF();
+    const title = `Monthly Tax Analysis - ${selectedTaxMonth}`;
+    
+    doc.setFontSize(18);
+    doc.text("NexPOS Tax Report", 14, 20);
+    
+    doc.setFontSize(12);
+    doc.text(title, 14, 30);
+    
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 36);
+
+    // Summary Section
+    doc.setFillColor(245, 245, 245);
+    doc.rect(14, 45, 180, 25, 'F');
+    doc.setFontSize(10);
+    doc.text(`Total Orders: ${taxSummary.orders}`, 20, 55);
+    doc.text(`Total Taxable Value: ${taxSummary.taxable.toFixed(2)}`, 80, 55);
+    doc.text(`Total Tax Collected: ${taxSummary.tax.toFixed(2)}`, 140, 55);
+    doc.text(`Net Revenue: ${taxSummary.total.toFixed(2)}`, 20, 65);
+
+    // Table
+    const tableColumn = ["Date", "Order ID", "Taxable Amt", "Tax (5%)", "Total"];
+    const tableRows = taxReportData.map(order => [
+        new Date(order.timestamp).toLocaleDateString(),
+        order.id.slice(-6),
+        order.subtotal.toFixed(2),
+        order.tax.toFixed(2),
+        order.total.toFixed(2)
+    ]);
+
+    // Add Total Row
+    tableRows.push([
+        "", "TOTAL", 
+        taxSummary.taxable.toFixed(2), 
+        taxSummary.tax.toFixed(2), 
+        taxSummary.total.toFixed(2)
+    ]);
+
+    doc.autoTable({
+        startY: 80,
+        head: [tableColumn],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] }, // Indigo color
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+
+    doc.save(`Tax_Report_${selectedTaxMonth}.pdf`);
+  };
 
   // --- Helper to Resolve Staff Name (Current vs Historical) ---
   const getStaffName = (id: string, snapshotName: string) => {
@@ -208,6 +339,7 @@ const Reports: React.FC = () => {
             { id: 'INVENTORY', label: 'Inventory' },
             { id: 'STAFF', label: 'Staff & Audit' },
             { id: 'FINANCE', label: 'Finance' },
+            { id: 'TAX', label: 'Tax Analysis' },
           ].map((item) => (
             <button
               key={item.id}
@@ -223,20 +355,22 @@ const Reports: React.FC = () => {
           ))}
         </nav>
         
-        {/* Date Filter */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50">
-           <p className="text-xs font-bold text-slate-500 uppercase mb-2">Time Period</p>
-           <select 
-             value={dateRange} 
-             onChange={(e) => setDateRange(e.target.value as any)}
-             className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-           >
-             <option value="TODAY">Today</option>
-             <option value="WEEK">This Week</option>
-             <option value="MONTH">This Month</option>
-             <option value="ALL">All Time</option>
-           </select>
-        </div>
+        {/* Date Filter (Only for Non-Tax Reports) */}
+        {activeCategory !== 'TAX' && (
+            <div className="p-4 border-t border-slate-100 bg-slate-50">
+            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Time Period</p>
+            <select 
+                value={dateRange} 
+                onChange={(e) => setDateRange(e.target.value as any)}
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+                <option value="TODAY">Today</option>
+                <option value="WEEK">This Week</option>
+                <option value="MONTH">This Month</option>
+                <option value="ALL">All Time</option>
+            </select>
+            </div>
+        )}
       </div>
 
       {/* Main Content Area */}
@@ -718,6 +852,112 @@ const Reports: React.FC = () => {
                 </div>
              </div>
         )}
+
+        {/* NEW: TAX ANALYSIS REPORTS */}
+        {activeCategory === 'TAX' && (
+             <div className="space-y-6 animate-fade-in">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Monthly Tax Analysis</h2>
+                        <p className="text-slate-500 text-sm">GST Calculation & Filing Report</p>
+                    </div>
+                    
+                    <div className="flex gap-3 items-center">
+                         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                             <span className="text-xs font-bold text-slate-500 uppercase">Select Month</span>
+                             <input 
+                                type="month" 
+                                value={selectedTaxMonth}
+                                onChange={(e) => setSelectedTaxMonth(e.target.value)}
+                                className="outline-none text-sm font-bold text-slate-700 bg-transparent"
+                             />
+                         </div>
+                         <button 
+                             onClick={exportTaxPDF}
+                             className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-red-700 transition-all shadow-sm"
+                         >
+                             <span>📄</span> Export PDF
+                         </button>
+                         <button 
+                             onClick={exportTaxExcel}
+                             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all shadow-sm"
+                         >
+                             <span>📊</span> Export Excel
+                         </button>
+                    </div>
+                </div>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-4 gap-6">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold uppercase">Report Month</p>
+                        <p className="text-xl font-bold text-slate-800 mt-1">{selectedTaxMonth}</p>
+                    </div>
+                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold uppercase">Total Taxable Value</p>
+                        <p className="text-2xl font-bold text-indigo-600 mt-1">₹{taxSummary.taxable.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold uppercase">Total Tax Collected</p>
+                        <p className="text-2xl font-bold text-red-600 mt-1">₹{taxSummary.tax.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold uppercase">Total Orders</p>
+                        <p className="text-2xl font-bold text-emerald-600 mt-1">{taxSummary.orders}</p>
+                    </div>
+                </div>
+
+                {/* Detailed Table */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">Detailed Tax Breakdown</h3>
+                        <span className="text-xs text-slate-500">Showing {taxReportData.length} records</span>
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                        {taxReportData.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                                <span className="text-4xl mb-2">🧾</span>
+                                <p>No records found for {selectedTaxMonth}</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-white text-slate-500 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-3">Date</th>
+                                        <th className="px-6 py-3">Order ID</th>
+                                        <th className="px-6 py-3">Customer</th>
+                                        <th className="px-6 py-3 text-right">Taxable Amt</th>
+                                        <th className="px-6 py-3 text-right">Tax (5%)</th>
+                                        <th className="px-6 py-3 text-right">Total Bill</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {taxReportData.map(order => (
+                                        <tr key={order.id} className="hover:bg-slate-50">
+                                            <td className="px-6 py-3 text-slate-500">{new Date(order.timestamp).toLocaleDateString()}</td>
+                                            <td className="px-6 py-3 font-mono text-slate-600">#{order.id.slice(-6)}</td>
+                                            <td className="px-6 py-3 text-slate-800">{order.customerName || 'Guest'}</td>
+                                            <td className="px-6 py-3 text-right font-medium text-slate-700">₹{order.subtotal.toFixed(2)}</td>
+                                            <td className="px-6 py-3 text-right font-bold text-red-600">₹{order.tax.toFixed(2)}</td>
+                                            <td className="px-6 py-3 text-right font-bold text-emerald-700">₹{order.total.toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-slate-50 border-t border-slate-200 sticky bottom-0 font-bold text-slate-800">
+                                    <tr>
+                                        <td colSpan={3} className="px-6 py-3 text-right uppercase text-xs tracking-wider">Monthly Totals</td>
+                                        <td className="px-6 py-3 text-right">₹{taxSummary.taxable.toFixed(2)}</td>
+                                        <td className="px-6 py-3 text-right text-red-700">₹{taxSummary.tax.toFixed(2)}</td>
+                                        <td className="px-6 py-3 text-right text-emerald-800">₹{taxSummary.total.toFixed(2)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        )}
+                    </div>
+                </div>
+             </div>
+        )}
+
       </div>
 
       {/* Add Expense Modal */}
