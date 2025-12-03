@@ -92,6 +92,28 @@ export interface Table {
   floor: string;
 }
 
+// --- Reservation System ---
+
+export enum ReservationStatus {
+  CONFIRMED = 'CONFIRMED',
+  COMPLETED = 'COMPLETED', // Guest Arrived
+  CANCELLED = 'CANCELLED',
+  NO_SHOW = 'NO_SHOW'
+}
+
+export interface Reservation {
+  id: string;
+  tableId: string;
+  customerName: string;
+  customerPhone: string;
+  reservationTime: number; // Timestamp of booking
+  guests: number;
+  notes?: string;
+  status: ReservationStatus;
+  createdAt: number;
+  createdBy?: string;
+}
+
 // --- Loyalty System Types ---
 
 export interface LoyaltySettings {
