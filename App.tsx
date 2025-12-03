@@ -10,7 +10,7 @@ import Tables from './pages/Tables';
 import CRM from './pages/CRM';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import { Product, CartItem, Order, OrderStatus, VariantOption, Payment, Table, Customer, Expense, AuditLog, Staff, Shift, PaymentMethod, LoyaltySettings, LoyaltyTransaction, ItemStatus } from './types';
+import { Product, CartItem, Order, OrderStatus, VariantOption, Payment, Table, Customer, Expense, AuditLog, Staff, Shift, PaymentMethod, LoyaltySettings, LoyaltyTransaction, ItemStatus, Reservation, ReservationStatus } from './types';
 import { MOCK_PRODUCTS, DEFAULT_TABLES } from './constants';
 
 // Firebase Imports (Realtime Database)
@@ -37,6 +37,7 @@ interface AppState {
   cart: CartItem[];
   orders: Order[];
   tables: Table[];
+  reservations: Reservation[];
   customers: Customer[];
   expenses: Expense[];
   auditLogs: AuditLog[];
@@ -65,6 +66,11 @@ interface AppState {
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   addTable: (name: string, floor: string) => void;
   removeTable: (id: string) => void;
+  
+  // Reservation Actions
+  addReservation: (reservation: Omit<Reservation, 'id' | 'createdAt'>) => void;
+  updateReservationStatus: (id: string, status: ReservationStatus) => void;
+  
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
   updateCustomer: (customer: Customer) => void;
@@ -123,6 +129,7 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -226,6 +233,13 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         }
     });
 
+    // Reservations
+    const resRef = ref(db, 'reservations');
+    const unsubRes = onValue(resRef, (snapshot) => {
+        const resList = snapshotToArray<Reservation>(snapshot.val());
+        setReservations(resList.sort((a,b) => a.reservationTime - b.reservationTime));
+    });
+
     // Staff
     const staffRef = ref(db, 'staff');
     const unsubStaff = onValue(staffRef, (snapshot) => {
@@ -310,6 +324,7 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         unsubExp();
         unsubLog();
         unsubStaff();
+        unsubRes();
     };
   }, []); // Run listeners once on mount
 
@@ -734,8 +749,52 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     set(ref(db, 'tables/' + newId), cleanData({ id: newId, name, floor }));
   };
 
-  const removeTable = (id: string) => {
-    remove(ref(db, 'tables/' + id));
+  const removeTable = async (id: string) => {
+    if (!id) {
+        console.error("No Table ID provided for deletion");
+        return;
+    }
+    console.log("Attempting to delete table:", id);
+    
+    // 1. Optimistic Update (Immediate)
+    setTables(prev => {
+        const newState = prev.filter(t => t.id !== id);
+        return newState;
+    });
+    
+    // 2. DB Update
+    try {
+        await set(child(ref(db), `tables/${id.trim()}`), null);
+        logAction('TABLE_REMOVE', `Table ${id} removed`);
+    } catch (err: any) {
+        console.error("Failed to delete table from DB:", err);
+        // Force refresh data from server if delete fails
+        const snapshot = await get(ref(db, 'tables'));
+        if (snapshot.exists()) {
+             setTables(snapshotToArray<Table>(snapshot.val()));
+        }
+        alert("Failed to delete table from server: " + err.message);
+    }
+  };
+
+  // --- RESERVATION ACTIONS ---
+  
+  const addReservation = (data: Omit<Reservation, 'id' | 'createdAt'>) => {
+      const newRef = push(ref(db, 'reservations'));
+      const reservation: Reservation = {
+          ...data,
+          id: newRef.key!,
+          createdAt: Date.now(),
+          status: ReservationStatus.CONFIRMED,
+          createdBy: currentUser?.name
+      };
+      set(newRef, cleanData(reservation));
+      logAction('RESERVATION_ADD', `Reserved Table ${data.tableId} for ${data.customerName}`);
+  };
+
+  const updateReservationStatus = (id: string, status: ReservationStatus) => {
+      update(ref(db, `reservations/${id}`), { status });
+      logAction('RESERVATION_UPDATE', `Reservation ${id} status updated to ${status}`);
   };
 
   const addProduct = (productData: Omit<Product, 'id'>) => {
@@ -757,13 +816,14 @@ const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <StoreContext.Provider value={{
-      products, categories, cart, orders, tables, customers, expenses, auditLogs, shifts, loyaltySettings, staffList,
+      products, categories, cart, orders, tables, reservations, customers, expenses, auditLogs, shifts, loyaltySettings, staffList,
       currentUser, currentShift, isDbConnected, connectionError,
       login, logout, startShift, endShift, 
       showEndShiftModal, setShowEndShiftModal,
       addToCart, removeFromCart, updateCartItemQty, clearCart,
       sendToKitchen, updateKotStatus, settleOrder, settleCustomerDue, updateOrderStatus,
       addTable, removeTable, addProduct, updateProduct, updateCustomer,
+      addReservation, updateReservationStatus,
       addExpense, logAction, updateLoyaltySettings, retryConnection,
       addStaff, removeStaff
     }}>
@@ -793,7 +853,7 @@ const LoginScreen: React.FC = () => {
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
             {/* Connection Indicator */}
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 ${isDbConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                <div className={`w-2 h-2 rounded-full ${isDbConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                <div className={`w-2 h-2 rounded-full ${isDbConnected ? 'bg-green-50 animate-pulse' : 'bg-red-500'}`}></div>
                 {isDbConnected ? 'Realtime DB Online' : 'Offline Mode'}
             </div>
 
