@@ -193,7 +193,7 @@ const POS: React.FC = () => {
           const tableInfo = tables.find(t => t.id === selectedTable)?.name || selectedTable;
           const itemsList = cart.map(i => `${i.qty} x ${i.name}`).join('%0a');
           
-          const message = `*Order Placed!* 🍽️%0a%0aHello ${customerName || 'Customer'},%0aYour order at *NexPOS* has been received.%0a%0a*KOT Number:* ${kotId}%0a*Table:* ${tableInfo}%0a%0a*Items:*%0a${itemsList}%0a%0aThank you!`;
+          const message = `*Order Placed!* 🍽️%0a%0aHello ${customerName || 'Customer'},%0aYour order at *KhaoJi* has been received.%0a%0a*KOT Number:* ${kotId}%0a*Table:* ${tableInfo}%0a%0a*Items:*%0a${itemsList}%0a%0aThank you!`;
           
           window.open(`https://wa.me/${customerPhone}?text=${message}`, '_blank');
       }
@@ -242,7 +242,7 @@ const POS: React.FC = () => {
       const tableInfo = tables.find(t => t.id === selectedTable)?.name || selectedTable;
       
       // Header
-      let text = `🧾 *Bill Receipt - NexPOS*\n\n`;
+      let text = `🧾 *Bill Receipt - KhaoJi*\n\n`;
       text += `📅 *Date:* ${dateStr}\n`;
       text += `🔢 *Order No:* #${order.id.slice(-6)}\n`;
       text += `🍽️ *Table:* ${tableInfo}\n`;
